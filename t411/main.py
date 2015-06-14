@@ -25,7 +25,6 @@ _binOps = {
 def _arithmeticEval(s):
     """
     A safe eval supporting basic arithmetic operations.
-
     :param s: expression to evaluate
     :return: value
     """
@@ -53,7 +52,7 @@ class t411(TorrentProvider, MovieProvider):
         'login' : 'https://www.t411.io/users/login/',
         'login_check': 'https://www.t411.io',
         'detail': 'https://www.t411.io/torrents/?id=%s',
-        'search': 'https://www.t411.io/torrents/search/?search=%s %s',
+        'search': 'https://www.t411.io/torrents/search/?search=%s',
         'download' : 'http://www.t411.io/torrents/download/?id=%s',
     }
 
@@ -65,13 +64,14 @@ class t411(TorrentProvider, MovieProvider):
         log.debug('Searching T411 for %s' % (title))
         # test the new title and search for it if valid
         newTitle = getFrenchTitle(title)
-        request = ''
         if newTitle is not None:
-            request = ('(' + title + ')|(' + newTitle + ')').replace(':', '')
+            request = ('(' + title + ')|(' + newTitle + ')')
         else:
-            request = title.replace(':', '')
-
-        url = self.urls['search'] % (request, acceptableQualityTerms(quality))
+            request = title
+        
+        if newTitle is None:
+            newTitle = title
+        url = self.urls['search'] % (request.replace(':', ''))
         data = self.getHTMLData(url)
 
         log.debug('Received data from T411')
@@ -135,13 +135,11 @@ class t411(TorrentProvider, MovieProvider):
         """
         When trying to connect too many times with wrong password, a captcha can be requested.
         This captcha is really simple and can be solved by the provider.
-
         <label for="pass">204 + 65 = </label>
             <input type="text" size="40" name="captchaAnswer" id="lgn" value=""/>
             <input type="hidden" name="captchaQuery" value="204 + 65 = ">
             <input type="hidden" name="captchaToken" value="005d54a7428aaf587460207408e92145">
         <br/>
-
         :param output: initial login output
         :return: output after captcha resolution
         """
@@ -169,34 +167,10 @@ class t411(TorrentProvider, MovieProvider):
 
     loginCheckSuccess = loginSuccess
 
-def acceptableQualityTerms(quality):
-    """
-    This function retrieve all the acceptable terms for a quality (eg hdrip and bdrip for brrip)
-    Then it creates regex accepted by t411 to search for one of this term
-
-    t411 have to handle alternatives as OR and then the regex is firstAlternative|secondAlternative
-    
-    In alternatives, there can be "doubled terms" as "br rip" or "bd rip" for brrip
-    These doubled terms have to be handled as AND and are then (firstBit&secondBit) 
-    """
-    alternatives = quality.get('alternative', [])
-    # first acceptable term is the identifier itself
-    acceptableTerms = [quality['identifier']]
-    log.debug('Requesting alternative quality terms for : ' + str(acceptableTerms) )
-    # handle single terms
-    acceptableTerms.extend([ term for term in alternatives if type(term) == type('') ])
-    # handle doubled terms (such as 'dvd rip')
-    doubledTerms = [ term for term in alternatives if type(term) == type(('', '')) ]
-    acceptableTerms.extend([ '('+first+'%26'+second+')' for (first,second) in doubledTerms ])
-    # join everything and return
-    log.debug('Found alternative quality terms : ' + str(acceptableTerms).replace('%26', ' '))
-    return '|'.join(acceptableTerms)
-
 def getFrenchTitle(title):
     """
     This function uses Allocine API to get the French movie title of the given title.
     It does so by searching for movies with the given title. 
-
     By default, Allocine search for both original title or French title, so the search
         returns the movie if the given title is original one or french one.
     Then, we look for the french title in the first result. If there is not, we fall 
